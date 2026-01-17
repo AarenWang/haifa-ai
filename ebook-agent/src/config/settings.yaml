@@ -1,0 +1,10 @@
+books_dir: "./data/books"
+qdrant_url: "http://localhost:6333"
+qdrant_api_key: null
+collection_name: "book_chunks"
+embedding_model: "text-embedding-3-large"
+llm_model: "gpt-4o-mini"
+chunk_size: 900
+chunk_overlap: 120
+top_k: 6
+similarity_cutoff: 0.2
