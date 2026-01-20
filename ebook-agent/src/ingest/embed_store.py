@@ -4,16 +4,16 @@ from dataclasses import dataclass
 from typing import Iterable, Optional
 
 from llama_index.core import Document, Settings, StorageContext, VectorStoreIndex
-from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 
 from config.settings import AppSettings
-from ingest.chunker import Chunk, chunk_sections
+from ingest.chunker import chunk_sections
 from ingest.parse_epub import parse_epub
 from ingest.parse_pdf import parse_pdf
 from ingest.scan_books import BookFile
+from llm.genai import GenAIEmbedding
 
 
 @dataclass(frozen=True)
@@ -86,7 +86,7 @@ def ingest_books(
         url=settings.qdrant_url,
         api_key=settings.qdrant_api_key,
     )
-    Settings.embed_model = OpenAIEmbedding(model=settings.embedding_model)
+    Settings.embed_model = GenAIEmbedding(model_name=settings.embedding_model)
 
     vector_store = QdrantVectorStore(client=client, collection_name=settings.collection_name)
     storage_context = StorageContext.from_defaults(vector_store=vector_store)

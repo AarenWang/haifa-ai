@@ -3,8 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
-from llama_index.core import Settings
-from llama_index.llms.openai import OpenAI
+import os
+
+from google import genai
 
 from config.settings import AppSettings
 from query.prompt import build_prompt
@@ -38,7 +39,9 @@ def synthesize_answer(question: str, chunks: list[RetrievedChunk], settings: App
             citations="",
         )
 
-    Settings.llm = OpenAI(model=settings.llm_model)
     prompt = build_prompt(question, chunks)
-    response = Settings.llm.complete(prompt)
-    return AnswerResult(answer=str(response), citations=_format_citations(chunks))
+    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    client = genai.Client(api_key=api_key) if api_key else genai.Client()
+    response = client.models.generate_content(model=settings.llm_model, contents=prompt)
+    answer = response.text or ""
+    return AnswerResult(answer=answer, citations=_format_citations(chunks))

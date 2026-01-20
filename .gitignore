@@ -1,0 +1,3 @@
+**/*.pyc
+ebook-agent/src/qdrant.tar.gz
+ebook-agent/src/venv/

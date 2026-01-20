@@ -3,11 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from llama_index.core import Settings, VectorStoreIndex
-from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 
 from config.settings import AppSettings
+from llm.genai import GenAIEmbedding
 
 
 @dataclass(frozen=True)
@@ -18,7 +18,7 @@ class RetrievedChunk:
 
 
 def retrieve_chunks(question: str, settings: AppSettings) -> list[RetrievedChunk]:
-    Settings.embed_model = OpenAIEmbedding(model=settings.embedding_model)
+    Settings.embed_model = GenAIEmbedding(model_name=settings.embedding_model)
     client = QdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key)
     vector_store = QdrantVectorStore(client=client, collection_name=settings.collection_name)
     index = VectorStoreIndex.from_vector_store(vector_store)
