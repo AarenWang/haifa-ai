@@ -1,3 +1,6 @@
 **/*.pyc
 ebook-agent/src/qdrant.tar.gz
 ebook-agent/src/venv/
+ebook-vocab-tool/src/venv/
+ebook-vocab-tool/out/
+**/__pycache__/

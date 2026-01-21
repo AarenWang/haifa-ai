@@ -1,0 +1,6 @@
+spacy>=3.7,<4.0
+ebooklib>=0.18
+beautifulsoup4>=4.12
+pdfminer.six>=20231228
+tqdm>=4.66
+pymupdf>=1.24
