@@ -1,0 +1,9 @@
+claude-agent-sdk
+modelcontextprotocol
+anthropic
+jsonschema
+paramiko
+dashscope
+openai
+langgraph
+langchain-core

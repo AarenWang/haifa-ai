@@ -1,0 +1,97 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["meta", "root_cause", "evidence_table", "next_actions", "audit", "redaction"],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "service", "timestamp", "collection_window_minutes", "agent_version"],
+      "properties": {
+        "host": {"type": "string"},
+        "service": {"type": "string"},
+        "env": {"type": "string"},
+        "timestamp": {"type": "string", "description": "ISO8601"},
+        "collection_window_minutes": {"type": "integer"},
+        "agent_version": {"type": "string"}
+      }
+    },
+    "root_cause": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "summary", "confidence"],
+      "properties": {
+        "category": {
+          "type": "string",
+          "enum": ["CPU", "IO_WAIT", "RUN_QUEUE", "MEMORY", "GC", "LOCK_CONTEND", "NET", "EXTERNAL_DEP", "UNKNOWN"]
+        },
+        "summary": {"type": "string"},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "evidence_table": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cmd_id", "signal", "interpretation", "evidence_ref"],
+        "properties": {
+          "cmd_id": {"type": "string"},
+          "cmd": {"type": "string"},
+          "signal": {"type": "string"},
+          "interpretation": {"type": "string"},
+          "evidence_ref": {"type": "string"}
+        }
+      }
+    },
+    "next_actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["action", "purpose", "risk", "cmd_id"],
+        "properties": {
+          "action": {"type": "string"},
+          "purpose": {"type": "string"},
+          "risk": {"type": "string", "enum": ["READ_ONLY", "LOW"]},
+          "cmd_id": {"type": "string"}
+        }
+      }
+    },
+    "audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_id", "commands"],
+      "properties": {
+        "session_id": {"type": "string"},
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "cmd_id", "started_at", "elapsed_ms", "output_hash", "redacted_fields"],
+            "properties": {
+              "id": {"type": "string"},
+              "cmd_id": {"type": "string"},
+              "cmd": {"type": "string"},
+              "started_at": {"type": "string", "description": "ISO8601"},
+              "elapsed_ms": {"type": "integer"},
+              "output_hash": {"type": "string"},
+              "redacted_fields": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        }
+      }
+    },
+    "redaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["applied", "rules", "replaced_count"],
+      "properties": {
+        "applied": {"type": "boolean"},
+        "rules": {"type": "array", "items": {"type": "string"}},
+        "replaced_count": {"type": "integer"}
+      }
+    }
+  }
+}
