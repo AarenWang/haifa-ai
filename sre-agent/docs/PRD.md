@@ -65,5 +65,5 @@
 
 ## 8. 相关文档
 
-- 生产只读方案与技术设计见 [ops-agent/TECH-DESIGN.md](ops-agent/TECH-DESIGN.md)
-- 结构化 Schema 见 [ops-agent/report_schema.json](ops-agent/report_schema.json) 与 [ops-agent/evidence_schema.json](ops-agent/evidence_schema.json)
+- 生产只读方案与技术设计见 [TECH-DESIGN.md](TECH-DESIGN.md)
+- 结构化 Schema 见 [../schemas/report_schema.json](../schemas/report_schema.json) 与 [../schemas/evidence_schema.json](../schemas/evidence_schema.json)

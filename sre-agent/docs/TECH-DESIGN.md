@@ -218,7 +218,7 @@ if __name__ == "__main__":
 
 ### 5.1 evidence_pack.json
 
-Schema 见 [evidence_schema.json](evidence_schema.json)。核心字段：
+Schema 见 [../schemas/evidence_schema.json](../schemas/evidence_schema.json)。核心字段：
 
 - meta: host、service、timestamp
 - snapshots: cmd_id、signal、summary、audit_ref
@@ -227,7 +227,7 @@ Schema 见 [evidence_schema.json](evidence_schema.json)。核心字段：
 
 ### 5.2 diagnosis_report.json
 
-Schema 见 [report_schema.json](report_schema.json)。核心字段：
+Schema 见 [../schemas/report_schema.json](../schemas/report_schema.json)。核心字段：
 
 - meta
 - root_cause
@@ -296,7 +296,7 @@ Schema 见 [report_schema.json](report_schema.json)。核心字段：
 
 ### 7.3 脱敏策略
 
-默认规则见 [redaction.py](redaction.py)：
+默认规则见 [../src/storage/redaction.py](../src/storage/redaction.py)：
 
 - IP、邮箱、Token、路径、用户名
 - 输出仅保存脱敏后内容
