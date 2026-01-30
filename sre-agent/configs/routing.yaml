@@ -1,0 +1,20 @@
+# Routing rules example
+routes:
+  CPU:
+    - mpstat
+    - ps_cpu
+    - jps
+    - jstat
+    - jstack
+  IO_WAIT:
+    - iostat
+    - pidstat_io
+    - proc_pid_io
+    - lsof_pid
+  MEMORY:
+    - free
+    - ps_mem
+  NET:
+    - ss
+  EXTERNAL_DEP:
+    - journalctl

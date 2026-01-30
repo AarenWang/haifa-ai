@@ -1,0 +1,94 @@
+# Minimal command registry example
+commands:
+  uname:
+    cmd: uname -a
+    risk: READ_ONLY
+    platform: linux
+  os_release:
+    cmd: cat /etc/os-release
+    risk: READ_ONLY
+    platform: linux
+  nproc:
+    cmd: nproc
+    risk: READ_ONLY
+    platform: linux
+  uptime:
+    cmd: uptime
+    risk: READ_ONLY
+    platform: linux
+  loadavg:
+    cmd: cat /proc/loadavg
+    risk: READ_ONLY
+    platform: linux
+  top:
+    cmd: top -b -n 1 | head -n 50
+    risk: READ_ONLY
+    platform: linux
+  ps_cpu:
+    cmd: ps -eo pid,ppid,cmd,%cpu,%mem --sort=-%cpu | head -n 20
+    risk: READ_ONLY
+    platform: linux
+  ps_mem:
+    cmd: ps -eo pid,ppid,cmd,%cpu,%mem --sort=-%mem | head -n 15
+    risk: READ_ONLY
+    platform: linux
+  vmstat:
+    cmd: vmstat 1 5
+    risk: READ_ONLY
+    platform: linux
+  iostat:
+    cmd: iostat -x 1 3
+    risk: READ_ONLY
+    platform: linux
+  free:
+    cmd: free -m
+    risk: READ_ONLY
+    platform: linux
+  df:
+    cmd: df -h
+    risk: READ_ONLY
+    platform: linux
+  mpstat:
+    cmd: mpstat -P ALL 1 1
+    risk: READ_ONLY
+    platform: linux
+  pidstat_io:
+    cmd: pidstat -d 1 2
+    risk: READ_ONLY
+    platform: linux
+  pidstat:
+    cmd: pidstat -h 1 1
+    risk: READ_ONLY
+    platform: linux
+  jps:
+    cmd: jps -l
+    risk: READ_ONLY
+    platform: linux
+  jstat:
+    cmd: jstat -gcutil {pid} 1 5
+    risk: READ_ONLY
+    platform: linux
+  jstack:
+    cmd: jstack -l {pid}
+    risk: READ_ONLY
+    platform: linux
+  jcmd_threads:
+    cmd: jcmd {pid} Thread.print
+    risk: READ_ONLY
+    platform: linux
+  proc_pid_io:
+    cmd: cat /proc/{pid}/io
+    risk: READ_ONLY
+    platform: linux
+  lsof_pid:
+    cmd: lsof -p {pid} 2>/dev/null | head -n 50
+    risk: READ_ONLY
+    platform: linux
+  journalctl:
+    cmd: journalctl -u {service} --since "30 min ago" --no-pager
+    risk: READ_ONLY
+    platform: linux
+  ss:
+    cmd: ss -tnp | head -n 30
+    risk: READ_ONLY
+    platform: linux

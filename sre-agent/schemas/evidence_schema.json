@@ -1,0 +1,81 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["meta", "snapshots", "hypothesis", "next_checks"],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "service", "timestamp"],
+      "properties": {
+        "host": {"type": "string"},
+        "service": {"type": "string"},
+        "env": {"type": "string"},
+        "session_id": {"type": "string"},
+        "platform": {"type": "string"},
+        "timestamp": {"type": "string"}
+      }
+    },
+    "snapshots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cmd_id", "signal", "summary", "audit_ref"],
+        "properties": {
+          "cmd_id": {"type": "string"},
+          "signal": {"type": "string"},
+          "summary": {"type": "string"},
+          "audit_ref": {"type": "string"}
+        }
+      }
+    },
+    "hypothesis": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["category", "confidence", "why", "evidence_refs"],
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": ["CPU", "IO_WAIT", "RUN_QUEUE", "MEMORY", "GC", "LOCK_CONTEND", "NET", "EXTERNAL_DEP", "UNKNOWN"]
+          },
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+          "why": {"type": "string"},
+          "evidence_refs": {"type": "array", "items": {"type": "string"}},
+          "counter_evidence": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "next_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cmd_id", "purpose"],
+        "properties": {
+          "cmd_id": {"type": "string"},
+          "purpose": {"type": "string"}
+        }
+      }
+    },
+    "signals": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed_risks", "deny_keywords"],
+      "properties": {
+        "allowed_risks": {"type": "array", "items": {"type": "string"}},
+        "deny_keywords": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

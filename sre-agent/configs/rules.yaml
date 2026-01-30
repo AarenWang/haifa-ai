@@ -1,0 +1,20 @@
+rules:
+  rules:
+    - category: IO_WAIT
+      signal: iowait_pct
+      op: ">="
+      threshold: 20
+      confidence: 0.8
+      why: "iowait high"
+    - category: MEMORY
+      signal: mem_available_mb
+      op: "<="
+      threshold: 200
+      confidence: 0.7
+      why: "memory available low"
+    - category: CPU
+      signal: loadavg_1m
+      op: ">="
+      threshold: 5
+      confidence: 0.6
+      why: "load average high"

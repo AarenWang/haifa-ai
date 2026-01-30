@@ -7,3 +7,5 @@ dashscope
 openai
 langgraph
 langchain-core
+pyyaml
+pytest

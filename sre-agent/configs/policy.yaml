@@ -1,0 +1,11 @@
+# Action policy for READ_ONLY enforcement
+action_policy:
+  allowed_risks:
+    - READ_ONLY
+  deny_keywords:
+    - kill
+    - reboot
+    - shutdown
+    - rm
+    - mkfs
+    - mount
