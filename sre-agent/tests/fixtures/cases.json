@@ -1,0 +1,17 @@
+[
+  {
+    "id": "io_wait_sample",
+    "expected_category": "IO_WAIT",
+    "signals": {"iowait_pct": 35.0, "loadavg_1m": 2.0, "mem_available_mb": 800.0}
+  },
+  {
+    "id": "memory_pressure_sample",
+    "expected_category": "MEMORY",
+    "signals": {"mem_available_mb": 120.0, "iowait_pct": 1.0, "loadavg_1m": 1.2}
+  },
+  {
+    "id": "cpu_load_sample",
+    "expected_category": "CPU",
+    "signals": {"loadavg_1m": 12.5, "iowait_pct": 3.0, "mem_available_mb": 900.0}
+  }
+]
