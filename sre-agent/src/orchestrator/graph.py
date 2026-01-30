@@ -10,6 +10,7 @@ stores raw/redacted/parsed evidence, and produces an evidence_pack.
 from __future__ import annotations
 
 import time
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -25,6 +26,9 @@ from orchestrator.rules import RuleEngine
 from storage.audit_store import AuditStore
 from storage.evidence_store import EvidenceStore
 from storage.redaction import hash_text, redact
+
+
+LOG = logging.getLogger("sre_agent.orchestrator")
 
 
 def now_iso() -> str:
@@ -50,6 +54,16 @@ class Orchestrator:
         self.rule_engine = RuleEngine(config.get("rules", {}))
 
     def run(self, ctx: OrchestratorContext) -> Dict[str, Any]:
+        LOG.info(
+            "orchestrator start session_id=%s host=%s service=%s pid=%s exec_mode=%s platform=%s window_minutes=%s",
+            ctx.session_id,
+            ctx.host,
+            ctx.service,
+            ctx.pid,
+            ctx.exec_mode,
+            ctx.platform,
+            ctx.window_minutes,
+        )
         if not ctx.session_id:
             raise ValueError("session_id is required")
 
@@ -161,10 +175,12 @@ class Orchestrator:
         metrics: Dict[str, Any] = {"timeouts": 0, "empty_outputs": 0, "skipped": 0}
 
         for cmd_id in baseline_cmds:
+            LOG.info("baseline exec cmd_id=%s", cmd_id)
             out, audit_ref, sig = exec_cmd(cmd_id, timeout=30)
             if not audit_ref and not out:
                 metrics["skipped"] += 1
             if not audit_ref:
+                LOG.warning("baseline skipped cmd_id=%s", cmd_id)
                 continue
             audit_refs.append(audit_ref)
             for k, v in (sig or {}).items():
@@ -188,6 +204,7 @@ class Orchestrator:
         for h in hypotheses:
             h["evidence_refs"] = audit_refs[:8]
         primary = hypotheses[0]["category"] if hypotheses else "UNKNOWN"
+        LOG.info("classify primary=%s", primary)
 
         # targeted routing (deterministic)
         targeted_cmds = routes.get(primary, [])
@@ -195,6 +212,7 @@ class Orchestrator:
         for cmd_id in targeted_cmds:
             if cmd_id in baseline_cmds:
                 continue
+            LOG.info("targeted exec cmd_id=%s", cmd_id)
             out, audit_ref, sig = exec_cmd(cmd_id, timeout=30)
             if audit_ref:
                 audit_refs.append(audit_ref)
@@ -213,6 +231,7 @@ class Orchestrator:
                     }
                 )
             else:
+                LOG.warning("targeted failed cmd_id=%s", cmd_id)
                 next_checks.append({"cmd_id": cmd_id, "purpose": "blocked_or_failed"})
 
         # Re-run rules after targeted signals
@@ -220,6 +239,7 @@ class Orchestrator:
         for h in hypotheses:
             h["evidence_refs"] = audit_refs[:8]
         primary = hypotheses[0]["category"] if hypotheses else primary
+        LOG.info("reclassify primary=%s", primary)
 
         evidence_pack = {
             "meta": {
@@ -246,6 +266,13 @@ class Orchestrator:
         }
 
         store.write_index("evidence_pack", evidence_pack)
+        LOG.info(
+            "orchestrator finished session_id=%s primary=%s baseline=%s targeted=%s",
+            ctx.session_id,
+            primary,
+            len(baseline_cmds),
+            len(targeted_cmds),
+        )
         # Keep audit summary for offline replay (best-effort).
         if audit_store is not None:
             store.write_index(

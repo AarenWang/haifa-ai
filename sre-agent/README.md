@@ -115,6 +115,16 @@ python -m src.cli.sre_agent_cli run \
   --output report/evidence_pack.json
 ```
 
+采证完成后运行 LLM 诊断（生成结构化报告）：
+
+```bash
+cd sre-agent
+python -m src.cli.sre_agent_cli report \
+  --evidence report/evidence_pack.json \
+  --schema schemas/report_schema.json \
+  > report/report.json
+```
+
 本机采证（仅用于开发机验证）：
 
 ```bash

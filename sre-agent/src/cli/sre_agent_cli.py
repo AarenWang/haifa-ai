@@ -10,6 +10,7 @@ Run a command:
 
 import argparse
 import json
+import logging
 import os
 import sys
 from typing import Any, Dict
@@ -34,6 +35,21 @@ from reporting.schema_validate import validate_schema  # noqa: E402
 from orchestrator.graph import Orchestrator, OrchestratorContext  # noqa: E402
 from integrations.webhook import normalize_alert  # noqa: E402
 from integrations.webhook import build_ticket_payload  # noqa: E402
+
+
+LOG = logging.getLogger("sre_agent")
+
+
+def configure_logging(level: str) -> None:
+    """Configure logging to stdout for CLI runs."""
+    lvl = (level or "INFO").upper()
+    numeric = getattr(logging, lvl, logging.INFO)
+    logging.basicConfig(
+        level=numeric,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S%z",
+        stream=sys.stdout,
+    )
 
 
 def load_runtime_env() -> Dict[str, Any]:
@@ -72,6 +88,7 @@ def build_config_paths(config_dir: str) -> Dict[str, str]:
 
 
 def handle_exec(args: argparse.Namespace) -> int:
+    LOG.info("exec start host=%s cmd_id=%s exec_mode=%s", args.host, args.cmd_id, args.exec_mode)
     config_paths = build_config_paths(args.config_dir)
     base_cfg = load_configs([config_paths["runtime"], config_paths["policy"], config_paths["commands"], config_paths["rules"]])
     base_cfg = apply_env_overrides(base_cfg)
@@ -81,6 +98,7 @@ def handle_exec(args: argparse.Namespace) -> int:
     try:
         meta = get_command_meta(commands_cfg, args.cmd_id)
     except Exception as exc:
+        LOG.error("exec command not found cmd_id=%s err=%s", args.cmd_id, exc)
         print(f"command not found: {exc}")
         return 2
 
@@ -88,25 +106,30 @@ def handle_exec(args: argparse.Namespace) -> int:
     allowed_risks = policy.get("allowed_risks", ["READ_ONLY"])
     deny_keywords = policy.get("deny_keywords", [])
     if not is_command_allowed(meta, allowed_risks, deny_keywords):
+        LOG.warning("exec blocked by policy cmd_id=%s", args.cmd_id)
         print("command blocked by policy")
         return 3
 
     template = meta.get("cmd")
     if "{service}" in template and not validate_service(args.service or ""):
+        LOG.error("exec invalid service cmd_id=%s", args.cmd_id)
         print("invalid or missing --service")
         return 4
     if "{pid}" in template and not validate_pid(args.pid or ""):
+        LOG.error("exec invalid pid cmd_id=%s", args.cmd_id)
         print("invalid or missing --pid")
         return 4
 
     try:
         command = render_command(template, service=args.service, pid=args.pid)
     except Exception as exc:
+        LOG.exception("exec failed to render cmd_id=%s", args.cmd_id)
         print(f"failed to render command: {exc}")
         return 5
 
     exec_mode = (args.exec_mode or "ssh").lower()
     if exec_mode not in ("ssh", "local"):
+        LOG.error("exec invalid exec_mode=%s", exec_mode)
         print("invalid --exec-mode (use ssh|local)")
         return 6
 
@@ -130,6 +153,7 @@ def handle_exec(args: argparse.Namespace) -> int:
     start_ts = time.time()
     output = executor.run(args.host, command, timeout=args.timeout)
     elapsed_ms = int((time.time() - start_ts) * 1000)
+    LOG.info("exec finished cmd_id=%s elapsed_ms=%s", args.cmd_id, elapsed_ms)
 
     redacted, rules, replaced = redact(output)
     output_hash = hash_text(redacted)
@@ -163,12 +187,15 @@ def handle_info(args: argparse.Namespace) -> int:
     _llm = create_llm_client(llm_vendor, cfg.get("llm", {}))
     _sdk = create_agent_sdk_client(sdk_vendor, cfg.get("agent_sdk", {}))
 
+    LOG.info("info llm_vendor=%s agent_sdk_vendor=%s", llm_vendor, sdk_vendor)
+
     print(f"LLM vendor: {llm_vendor} capabilities={_llm.capabilities()}")
     print(f"Agent SDK: {sdk_vendor} capabilities={_sdk.capabilities()}")
     return 0
 
 
 def handle_report(args: argparse.Namespace) -> int:
+    LOG.info("report start evidence=%s schema=%s", args.evidence, args.schema)
     config_paths = build_config_paths(args.config_dir)
     cfg = apply_env_overrides(load_configs([config_paths["runtime"], config_paths["policy"]]))
     cfg = merge_env_config(cfg, load_runtime_env())
@@ -185,11 +212,20 @@ def handle_report(args: argparse.Namespace) -> int:
     if isinstance(evidence, dict):
         evidence.setdefault("policy", cfg.get("action_policy", {}))
     report = build_report(_llm, evidence, schema)
+    LOG.info("report finished")
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
 
 
 def handle_run(args: argparse.Namespace) -> int:
+    LOG.info(
+        "run start host=%s service=%s pid=%s exec_mode=%s window_minutes=%s",
+        args.host,
+        args.service,
+        args.pid,
+        args.exec_mode,
+        args.window_minutes,
+    )
     config_paths = build_config_paths(args.config_dir)
     base_cfg = load_configs(
         [
@@ -205,6 +241,7 @@ def handle_run(args: argparse.Namespace) -> int:
 
     exec_mode = (args.exec_mode or "ssh").lower()
     if exec_mode not in ("ssh", "local"):
+        LOG.error("run invalid exec_mode=%s", exec_mode)
         print("invalid --exec-mode (use ssh|local)")
         return 6
 
@@ -238,6 +275,7 @@ def handle_run(args: argparse.Namespace) -> int:
     )
 
     evidence_pack = orch.run(ctx)
+    LOG.info("run finished session_id=%s", session_id)
     schema_path = args.evidence_schema
     with open(schema_path, "r", encoding="utf-8") as f:
         schema = json.load(f)
@@ -254,6 +292,7 @@ def handle_run(args: argparse.Namespace) -> int:
 def main() -> None:
     ap = argparse.ArgumentParser(description="SRE Agent CLI")
     ap.add_argument("--config-dir", default="configs")
+    ap.add_argument("--log-level", default=os.getenv("SRE_LOG_LEVEL", "INFO"))
 
     sub = ap.add_subparsers(dest="command")
 
@@ -300,6 +339,8 @@ def main() -> None:
     ticket.add_argument("--report", required=True, help="path to report json")
 
     args = ap.parse_args()
+
+    configure_logging(args.log_level)
 
     if args.command == "exec":
         raise SystemExit(handle_exec(args))

@@ -9,6 +9,10 @@ agent_sdk:
   server: sre-tools
 audit_log: ./audit.log
 
+ssh:
+  # Ensure remote shells load profile/rc so JAVA_HOME / PATH are set.
+  source_bashrc: true
+
 evidence:
   base_dir: ./report
 
