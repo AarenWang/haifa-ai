@@ -33,6 +33,7 @@ from storage.redaction import hash_text, redact  # noqa: E402
 from reporting.report_builder import build_report  # noqa: E402
 from reporting.schema_validate import validate_schema  # noqa: E402
 from orchestrator.graph import Orchestrator, OrchestratorContext  # noqa: E402
+from orchestrator.multi_stage import DiagnoseBudget, multi_round_diagnose  # noqa: E402
 from integrations.webhook import normalize_alert  # noqa: E402
 from integrations.webhook import build_ticket_payload  # noqa: E402
 
@@ -289,6 +290,118 @@ def handle_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_diagnose(args: argparse.Namespace) -> int:
+    config_paths = build_config_paths(args.config_dir)
+    base_cfg = load_configs(
+        [
+            config_paths["runtime"],
+            config_paths["policy"],
+            config_paths["commands"],
+            config_paths["routing"],
+            config_paths["rules"],
+        ]
+    )
+    base_cfg = apply_env_overrides(base_cfg)
+    cfg = merge_env_config(base_cfg, load_runtime_env())
+
+    exec_mode = (args.exec_mode or "ssh").lower()
+    if exec_mode not in ("ssh", "local"):
+        LOG.error("diagnose invalid exec_mode=%s", exec_mode)
+        print("invalid --exec-mode (use ssh|local)")
+        return 6
+
+    if exec_mode == "local":
+        executor = LocalExecutor({})
+    else:
+        ssh_cfg = cfg.get("ssh", {})
+        if args.ssh_user:
+            ssh_cfg["user"] = args.ssh_user
+        if args.ssh_password:
+            ssh_cfg["password"] = args.ssh_password
+        if args.ssh_port:
+            ssh_cfg["port"] = str(args.ssh_port)
+        executor = SSHExecutor(ssh_cfg)
+
+    from datetime import datetime
+
+    session_id = args.session_id or datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+
+    llm_vendor = args.llm_vendor or cfg.get("llm_vendor", "qwen")
+    llm = create_llm_client(llm_vendor, cfg.get("llm", {}))
+
+    ctx = OrchestratorContext(
+        host=args.host,
+        service=args.service,
+        window_minutes=args.window_minutes,
+        env=args.env or "",
+        session_id=session_id,
+        exec_mode=exec_mode,
+        pid=args.pid,
+        platform=args.platform,
+    )
+
+    budget = DiagnoseBudget(
+        max_rounds=args.max_rounds,
+        max_cmds_per_round=args.max_cmds_per_round,
+        max_total_cmds=args.max_total_cmds,
+        time_budget_sec=args.time_budget_sec,
+        confidence_threshold=args.confidence_threshold,
+    )
+
+    LOG.info(
+        "diagnose start host=%s service=%s pid=%s exec_mode=%s platform=%s session_id=%s llm=%s",
+        args.host,
+        args.service,
+        args.pid,
+        exec_mode,
+        args.platform,
+        session_id,
+        llm_vendor,
+    )
+
+    result = multi_round_diagnose(
+        config=cfg,
+        ctx=ctx,
+        executor=executor,
+        llm=llm,
+        plan_schema_path=args.plan_schema,
+        report_schema_path=args.report_schema,
+        budget=budget,
+    )
+
+    def _ensure_parent(path: str) -> None:
+        parent = os.path.dirname(path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+
+    if args.output_evidence:
+        _ensure_parent(args.output_evidence)
+        with open(args.output_evidence, "w", encoding="utf-8") as f:
+            json.dump(result["evidence_pack"], f, ensure_ascii=False, indent=2)
+    if args.output_report:
+        _ensure_parent(args.output_report)
+        with open(args.output_report, "w", encoding="utf-8") as f:
+            json.dump(result["diagnosis_report"], f, ensure_ascii=False, indent=2)
+    if args.output_trace:
+        _ensure_parent(args.output_trace)
+        with open(args.output_trace, "w", encoding="utf-8") as f:
+            json.dump(result["diagnosis_trace"], f, ensure_ascii=False, indent=2)
+
+    session_dir = os.path.abspath(os.path.join(cfg.get("evidence", {}).get("base_dir", "report"), session_id))
+    LOG.info(
+        "diagnose outputs evidence=%s report=%s trace=%s session_dir=%s",
+        os.path.abspath(args.output_evidence) if args.output_evidence else "",
+        os.path.abspath(args.output_report) if args.output_report else "",
+        os.path.abspath(args.output_trace) if args.output_trace else "",
+        session_dir,
+    )
+
+    # Default to printing report if no output file is specified
+    if not args.output_report:
+        print(json.dumps(result["diagnosis_report"], ensure_ascii=False, indent=2))
+    return 0
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="SRE Agent CLI")
     ap.add_argument("--config-dir", default="configs")
@@ -332,6 +445,30 @@ def main() -> None:
     run.add_argument("--evidence-schema", default=os.path.join("schemas", "evidence_schema.json"))
     run.add_argument("--output", default=None)
 
+    diag = sub.add_parser("diagnose", help="multi-round diagnose (collect + plan + report)")
+    diag.add_argument("--host", required=True)
+    diag.add_argument("--service", required=True)
+    diag.add_argument("--window-minutes", type=int, default=30)
+    diag.add_argument("--env", default="")
+    diag.add_argument("--pid", default=None)
+    diag.add_argument("--platform", default="auto", help="auto|linux|darwin|k8s")
+    diag.add_argument("--session-id", default=None)
+    diag.add_argument("--exec-mode", default="ssh")
+    diag.add_argument("--ssh-user", default=None)
+    diag.add_argument("--ssh-password", default=None)
+    diag.add_argument("--ssh-port", type=int, default=None)
+    diag.add_argument("--llm-vendor", default=None)
+    diag.add_argument("--plan-schema", default=os.path.join("schemas", "plan_schema.json"))
+    diag.add_argument("--report-schema", default=os.path.join("schemas", "report_schema.json"))
+    diag.add_argument("--max-rounds", type=int, default=3)
+    diag.add_argument("--max-cmds-per-round", type=int, default=3)
+    diag.add_argument("--max-total-cmds", type=int, default=12)
+    diag.add_argument("--time-budget-sec", type=int, default=120)
+    diag.add_argument("--confidence-threshold", type=float, default=0.85)
+    diag.add_argument("--output-evidence", default=os.path.join("report", "evidence_pack.json"))
+    diag.add_argument("--output-report", default=os.path.join("report", "report.json"))
+    diag.add_argument("--output-trace", default=os.path.join("report", "diagnosis_trace.json"))
+
     alert = sub.add_parser("ingest-alert", help="normalize an alert payload to run args")
     alert.add_argument("--payload", required=True, help="path to JSON payload")
 
@@ -348,6 +485,8 @@ def main() -> None:
         raise SystemExit(handle_report(args))
     if args.command == "run":
         raise SystemExit(handle_run(args))
+    if args.command == "diagnose":
+        raise SystemExit(handle_diagnose(args))
     if args.command == "ingest-alert":
         with open(args.payload, "r", encoding="utf-8") as f:
             payload = json.load(f)

@@ -31,6 +31,12 @@ from storage.redaction import hash_text, redact
 LOG = logging.getLogger("sre_agent.orchestrator")
 
 
+def _platform_auto(exec_mode: str) -> str:
+    if exec_mode == "local":
+        return "darwin" if sys.platform == "darwin" else "linux"
+    return "linux"
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -52,6 +58,95 @@ class Orchestrator:
         self.config = config
         self.executor = executor
         self.rule_engine = RuleEngine(config.get("rules", {}))
+
+    def _resolve_platform(self, ctx: OrchestratorContext) -> str:
+        platform = (ctx.platform or "auto").lower()
+        if platform == "auto":
+            platform = _platform_auto(ctx.exec_mode)
+        return platform
+
+    def exec_cmd(
+        self,
+        *,
+        ctx: OrchestratorContext,
+        cmd_id: str,
+        platform: str,
+        store: EvidenceStore,
+        audit_store: Optional[AuditStore],
+        commands_cfg: Dict[str, Any],
+        allowed_risks: List[str],
+        deny_keywords: List[str],
+        pid: Optional[str] = None,
+        service: Optional[str] = None,
+        timeout: int = 30,
+    ) -> Tuple[str, str, Dict[str, Any]]:
+        """Execute one registered command and persist evidence.
+
+        Returns (redacted_output, audit_id, signals_or_error).
+        """
+        meta = get_command_meta(commands_cfg, cmd_id)
+        if not is_command_allowed(meta, allowed_risks, deny_keywords):
+            return "", "", {"error": "blocked_by_policy"}
+
+        cmd_platform = (meta.get("platform") or "").lower()
+        if cmd_platform and cmd_platform not in ("any", "all") and cmd_platform != platform:
+            return "", "", {"error": "platform_mismatch", "platform": platform, "cmd_platform": cmd_platform}
+
+        template = meta.get("cmd")
+        if "{service}" in template:
+            _svc = service or ctx.service
+            if not validate_service(_svc):
+                return "", "", {"error": "invalid_service"}
+        if "{pid}" in template:
+            _pid = pid or ctx.pid or ""
+            if not validate_pid(_pid):
+                return "", "", {"error": "invalid_pid"}
+
+        command = render_command(template, service=(service or ctx.service), pid=(pid or ctx.pid))
+
+        started_at = now_iso()
+        start_ts = time.time()
+        output = self.executor.run(ctx.host, command, timeout=timeout)
+        elapsed_ms = int((time.time() - start_ts) * 1000)
+
+        redacted, redaction_rules, redacted_count = redact(output)
+        output_hash = hash_text(redacted)
+
+        audit_id = f"{cmd_id}-{int(start_ts)}"
+        if audit_store is not None:
+            audit_store.write(
+                {
+                    "session_id": ctx.session_id,
+                    "id": audit_id,
+                    "cmd_id": cmd_id,
+                    "cmd": command,
+                    "started_at": started_at,
+                    "elapsed_ms": elapsed_ms,
+                    "output_hash": output_hash,
+                    "redacted_fields": redaction_rules,
+                    "redacted_count": redacted_count,
+                }
+            )
+
+        raw_ref = store.put_raw(cmd_id, output)
+        redacted_ref = store.put_redacted(cmd_id, redacted)
+        parsed = parse_output(cmd_id, redacted)
+        parsed_ref = store.put_parsed(cmd_id, parsed)
+        sig = extract_signals(parsed)
+        store.write_index(
+            f"event-{cmd_id}-{audit_id}",
+            {
+                "cmd_id": cmd_id,
+                "raw_ref": raw_ref,
+                "redacted_ref": redacted_ref,
+                "parsed_ref": parsed_ref,
+                "signals": sig.get("signals", {}),
+                "timing": {"elapsed_ms": elapsed_ms, "timeout": False},
+                "audit_ref": audit_id,
+                "redaction": {"rules": redaction_rules, "replaced_count": redacted_count},
+            },
+        )
+        return redacted, audit_id, sig.get("signals", {})
 
     def run(self, ctx: OrchestratorContext) -> Dict[str, Any]:
         LOG.info(
@@ -85,78 +180,7 @@ class Orchestrator:
         commands_cfg = self.config.get("commands", {})
         routes = (self.config.get("routes") or self.config.get("routing") or {}).get("routes", {})
 
-        platform = (ctx.platform or "auto").lower()
-        if platform == "auto":
-            if ctx.exec_mode == "local":
-                platform = "darwin" if sys.platform == "darwin" else "linux"
-            else:
-                platform = "linux"
-
-        def exec_cmd(cmd_id: str, *, pid: Optional[str] = None, service: Optional[str] = None, timeout: int = 30) -> Tuple[str, str, Dict[str, Any]]:
-            meta = get_command_meta(commands_cfg, cmd_id)
-            if not is_command_allowed(meta, allowed_risks, deny_keywords):
-                return "", "", {"error": "blocked_by_policy"}
-
-            cmd_platform = (meta.get("platform") or "").lower()
-            if cmd_platform and cmd_platform not in ("any", "all") and cmd_platform != platform:
-                return "", "", {"error": "platform_mismatch", "platform": platform, "cmd_platform": cmd_platform}
-
-            template = meta.get("cmd")
-            if "{service}" in template:
-                _svc = service or ctx.service
-                if not validate_service(_svc):
-                    return "", "", {"error": "invalid_service"}
-            if "{pid}" in template:
-                _pid = pid or ctx.pid or ""
-                if not validate_pid(_pid):
-                    return "", "", {"error": "invalid_pid"}
-
-            command = render_command(template, service=(service or ctx.service), pid=(pid or ctx.pid))
-
-            started_at = now_iso()
-            start_ts = time.time()
-            output = self.executor.run(ctx.host, command, timeout=timeout)
-            elapsed_ms = int((time.time() - start_ts) * 1000)
-
-            redacted, redaction_rules, redacted_count = redact(output)
-            output_hash = hash_text(redacted)
-
-            audit_id = f"{cmd_id}-{int(start_ts)}"
-            if audit_store is not None:
-                audit_store.write(
-                    {
-                        "session_id": ctx.session_id,
-                        "id": audit_id,
-                        "cmd_id": cmd_id,
-                        "cmd": command,
-                        "started_at": started_at,
-                        "elapsed_ms": elapsed_ms,
-                        "output_hash": output_hash,
-                        "redacted_fields": redaction_rules,
-                        "redacted_count": redacted_count,
-                    }
-                )
-
-            raw_ref = store.put_raw(cmd_id, output)
-            redacted_ref = store.put_redacted(cmd_id, redacted)
-            parsed = parse_output(cmd_id, redacted)
-            parsed_ref = store.put_parsed(cmd_id, parsed)
-            sig = extract_signals(parsed)
-            store.write_index(
-                f"event-{cmd_id}-{audit_id}",
-                {
-                    "cmd_id": cmd_id,
-                    "raw_ref": raw_ref,
-                    "redacted_ref": redacted_ref,
-                    "parsed_ref": parsed_ref,
-                    "signals": sig.get("signals", {}),
-                    "timing": {"elapsed_ms": elapsed_ms, "timeout": False},
-                    "audit_ref": audit_id,
-                    "redaction": {"rules": redaction_rules, "replaced_count": redacted_count},
-                },
-            )
-
-            return redacted, audit_id, sig.get("signals", {})
+        platform = self._resolve_platform(ctx)
 
         baseline_cfg = self.config.get("baseline", {})
         baseline_cmds_cfg = baseline_cfg.get("cmds")
@@ -176,7 +200,17 @@ class Orchestrator:
 
         for cmd_id in baseline_cmds:
             LOG.info("baseline exec cmd_id=%s", cmd_id)
-            out, audit_ref, sig = exec_cmd(cmd_id, timeout=30)
+            out, audit_ref, sig = self.exec_cmd(
+                ctx=ctx,
+                cmd_id=cmd_id,
+                platform=platform,
+                store=store,
+                audit_store=audit_store,
+                commands_cfg=commands_cfg,
+                allowed_risks=allowed_risks,
+                deny_keywords=deny_keywords,
+                timeout=30,
+            )
             if not audit_ref and not out:
                 metrics["skipped"] += 1
             if not audit_ref:
@@ -213,7 +247,17 @@ class Orchestrator:
             if cmd_id in baseline_cmds:
                 continue
             LOG.info("targeted exec cmd_id=%s", cmd_id)
-            out, audit_ref, sig = exec_cmd(cmd_id, timeout=30)
+            out, audit_ref, sig = self.exec_cmd(
+                ctx=ctx,
+                cmd_id=cmd_id,
+                platform=platform,
+                store=store,
+                audit_store=audit_store,
+                commands_cfg=commands_cfg,
+                allowed_risks=allowed_risks,
+                deny_keywords=deny_keywords,
+                timeout=30,
+            )
             if audit_ref:
                 audit_refs.append(audit_ref)
                 for k, v in (sig or {}).items():

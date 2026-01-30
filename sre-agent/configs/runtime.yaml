@@ -12,6 +12,8 @@ audit_log: ./audit.log
 ssh:
   # Ensure remote shells load profile/rc so JAVA_HOME / PATH are set.
   source_bashrc: true
+  # If jps/jstack/jcmd are not on PATH (common), best-effort derive JAVA_HOME from `java`.
+  auto_java_path: true
 
 evidence:
   base_dir: ./report

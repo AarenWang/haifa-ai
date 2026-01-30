@@ -21,6 +21,8 @@ class SSHExecutor:
         self.strict_host_key = (config.get("strict_host_key", "false").lower() == "true")
         self.connect_timeout = int(config.get("connect_timeout") or "10")
 
+        self.auto_java_path = bool(config.get("auto_java_path", True))
+
         # Optional remote shell init to ensure tools (e.g. jps/jstack) are on PATH.
         # Many hosts put JAVA_HOME / PATH updates in ~/.bashrc only.
         self.shell_init: List[str] = []
@@ -59,6 +61,26 @@ class SSHExecutor:
 
     def _build_remote_script(self, command: str) -> str:
         lines: List[str] = []
+
+        # Best-effort JVM tooling bootstrap:
+        # Some hosts only set JAVA_HOME/PATH in interactive shells; many also guard ~/.bashrc
+        # with a non-interactive early return. To keep this usable for `jps/jstack/jcmd`,
+        # try to derive JAVA_HOME from `java` if `jps` is not found.
+        if self.auto_java_path:
+            lines.extend(
+                [
+                    'if ! command -v jps >/dev/null 2>&1; then',
+                    '  if command -v java >/dev/null 2>&1; then',
+                    '    _java="$(command -v java)";',
+                    '    if command -v readlink >/dev/null 2>&1; then _java="$(readlink -f "$_java" 2>/dev/null || echo "$_java")"; fi;',
+                    '    _jhome="$(cd "$(dirname "$_java")/.." 2>/dev/null && pwd -P || true)";',
+                    '    if [ -n "$_jhome" ] && [ -z "${JAVA_HOME:-}" ]; then export JAVA_HOME="$_jhome"; fi;',
+                    '    if [ -n "${JAVA_HOME:-}" ]; then export PATH="$JAVA_HOME/bin:$PATH"; fi;',
+                    '  fi;',
+                    'fi',
+                ]
+            )
+
         for k, v in (self.remote_env or {}).items():
             if not k:
                 continue
