@@ -1,0 +1,91 @@
+{"host": "23.95.61.104", "command": "uptime", "started_at": "2026-01-29T09:35:05.514717+00:00", "elapsed_ms": 8569, "output_length": 69}
+{"host": "23.95.61.104", "command": "cat /proc/loadavg", "started_at": "2026-01-29T09:35:14.085230+00:00", "elapsed_ms": 9249, "output_length": 69}
+{"host": "23.95.61.104", "command": "top -b -n 1 | head -n 40", "started_at": "2026-01-29T09:35:23.336075+00:00", "elapsed_ms": 4852, "output_length": 69}
+{"host": "23.95.61.104", "command": "ps -eo pid,ppid,cmd,%cpu,%mem --sort=-%cpu | head -n 15", "started_at": "2026-01-29T09:35:28.189266+00:00", "elapsed_ms": 4624, "output_length": 69}
+{"host": "23.95.61.104", "command": "free -m", "started_at": "2026-01-29T09:35:32.813966+00:00", "elapsed_ms": 1803, "output_length": 69}
+{"host": "23.95.61.104", "command": "jps -l", "started_at": "2026-01-29T09:35:34.617945+00:00", "elapsed_ms": 2202, "output_length": 69}
+{"host": "23.95.61.104", "command": "uptime", "started_at": "2026-01-29T09:37:06.390776+00:00", "elapsed_ms": 1287, "output_length": 0}
+{"host": "23.95.61.104", "command": "uptime", "started_at": "2026-01-29T09:41:48.137833+00:00", "elapsed_ms": 5676, "output_length": 71}
+{"host": "23.95.61.104", "command": "cat /proc/loadavg", "started_at": "2026-01-29T09:41:53.814387+00:00", "elapsed_ms": 2428, "output_length": 29}
+{"host": "23.95.61.104", "command": "top -b -n 1 | head -n 40", "started_at": "2026-01-29T09:41:56.243535+00:00", "elapsed_ms": 2447, "output_length": 3091}
+{"host": "23.95.61.104", "command": "ps -eo pid,ppid,cmd,%cpu,%mem --sort=-%cpu | head -n 15", "started_at": "2026-01-29T09:41:58.691244+00:00", "elapsed_ms": 2520, "output_length": 810}
+{"host": "23.95.61.104", "command": "free -m", "started_at": "2026-01-29T09:42:01.211604+00:00", "elapsed_ms": 4737, "output_length": 207}
+{"host": "23.95.61.104", "command": "jps -l", "started_at": "2026-01-29T09:42:05.949422+00:00", "elapsed_ms": 2067, "output_length": 47}
+{"host": "23.95.61.104", "command": "uptime", "started_at": "2026-01-29T09:44:11.755460+00:00", "elapsed_ms": 2275, "output_length": 71}
+{"host": "23.95.61.104", "command": "cat /proc/loadavg", "started_at": "2026-01-29T09:44:14.031781+00:00", "elapsed_ms": 2151, "output_length": 29}
+{"host": "23.95.61.104", "command": "top -b -n 1 | head -n 40", "started_at": "2026-01-29T09:44:16.183491+00:00", "elapsed_ms": 2746, "output_length": 3091}
+{"host": "23.95.61.104", "command": "ps -eo pid,ppid,cmd,%cpu,%mem --sort=-%cpu | head -n 15", "started_at": "2026-01-29T09:44:18.930694+00:00", "elapsed_ms": 5015, "output_length": 810}
+{"host": "23.95.61.104", "command": "free -m", "started_at": "2026-01-29T09:44:23.946640+00:00", "elapsed_ms": 4284, "output_length": 207}
+{"host": "23.95.61.104", "command": "jps -l", "started_at": "2026-01-29T09:44:28.231019+00:00", "elapsed_ms": 2144, "output_length": 47}
+{"host": "23.95.61.104", "command": "uptime", "started_at": "2026-01-29T09:50:13.112257+00:00", "elapsed_ms": 2110, "output_length": 71}
+{"host": "23.95.61.104", "command": "cat /proc/loadavg", "started_at": "2026-01-29T09:50:15.223753+00:00", "elapsed_ms": 2411, "output_length": 29}
+{"host": "23.95.61.104", "command": "top -b -n 1 | head -n 40", "started_at": "2026-01-29T09:50:17.635763+00:00", "elapsed_ms": 3254, "output_length": 3091}
+{"host": "23.95.61.104", "command": "ps -eo pid,ppid,cmd,%cpu,%mem --sort=-%cpu | head -n 15", "started_at": "2026-01-29T09:50:20.891089+00:00", "elapsed_ms": 2215, "output_length": 810}
+{"host": "23.95.61.104", "command": "free -m", "started_at": "2026-01-29T09:50:23.107692+00:00", "elapsed_ms": 2969, "output_length": 207}
+{"host": "23.95.61.104", "command": "jps -l", "started_at": "2026-01-29T09:50:26.077540+00:00", "elapsed_ms": 2307, "output_length": 47}
+{"host": "23.95.61.104", "command": "uptime", "started_at": "2026-01-29T09:51:41.053046+00:00", "elapsed_ms": 5291, "output_length": 71}
+{"host": "23.95.61.104", "command": "cat /proc/loadavg", "started_at": "2026-01-29T09:51:46.345459+00:00", "elapsed_ms": 15574, "output_length": 29}
+{"host": "23.95.61.104", "command": "top -b -n 1 | head -n 40", "started_at": "2026-01-29T09:52:01.920386+00:00", "elapsed_ms": 5022, "output_length": 3090}
+{"host": "23.95.61.104", "command": "ps -eo pid,ppid,cmd,%cpu,%mem --sort=-%cpu | head -n 15", "started_at": "2026-01-29T09:52:06.943598+00:00", "elapsed_ms": 2003, "output_length": 810}
+{"host": "23.95.61.104", "command": "free -m", "started_at": "2026-01-29T09:52:08.947937+00:00", "elapsed_ms": 2162, "output_length": 207}
+{"host": "23.95.61.104", "command": "jps -l", "started_at": "2026-01-29T09:52:11.110445+00:00", "elapsed_ms": 2265, "output_length": 47}
+{"host": "23.95.61.104", "command": "uptime", "started_at": "2026-01-29T09:53:14.570011+00:00", "elapsed_ms": 2716, "output_length": 71}
+{"host": "23.95.61.104", "command": "cat /proc/loadavg", "started_at": "2026-01-29T09:53:17.287285+00:00", "elapsed_ms": 2492, "output_length": 29}
+{"host": "23.95.61.104", "command": "top -b -n 1 | head -n 40", "started_at": "2026-01-29T09:53:19.780390+00:00", "elapsed_ms": 2530, "output_length": 3091}
+{"host": "23.95.61.104", "command": "ps -eo pid,ppid,cmd,%cpu,%mem --sort=-%cpu | head -n 15", "started_at": "2026-01-29T09:53:22.311434+00:00", "elapsed_ms": 2093, "output_length": 810}
+{"host": "23.95.61.104", "command": "free -m", "started_at": "2026-01-29T09:53:24.405330+00:00", "elapsed_ms": 2486, "output_length": 207}
+{"host": "23.95.61.104", "command": "jps -l", "started_at": "2026-01-29T09:53:26.892164+00:00", "elapsed_ms": 2571, "output_length": 47}
+{"host": "23.95.61.104", "command": "uptime", "started_at": "2026-01-29T09:54:31.080268+00:00", "elapsed_ms": 2252, "output_length": 71}
+{"host": "23.95.61.104", "command": "cat /proc/loadavg", "started_at": "2026-01-29T09:54:33.334242+00:00", "elapsed_ms": 2546, "output_length": 29}
+{"host": "23.95.61.104", "command": "top -b -n 1 | head -n 40", "started_at": "2026-01-29T09:54:35.881964+00:00", "elapsed_ms": 2764, "output_length": 3091}
+{"host": "23.95.61.104", "command": "ps -eo pid,ppid,cmd,%cpu,%mem --sort=-%cpu | head -n 15", "started_at": "2026-01-29T09:54:38.646906+00:00", "elapsed_ms": 2170, "output_length": 810}
+{"host": "23.95.61.104", "command": "free -m", "started_at": "2026-01-29T09:54:40.818467+00:00", "elapsed_ms": 3170, "output_length": 207}
+{"host": "23.95.61.104", "command": "jps -l", "started_at": "2026-01-29T09:54:43.989213+00:00", "elapsed_ms": 2291, "output_length": 47}
+{"host": "23.95.61.104", "command": "uptime", "started_at": "2026-01-29T10:02:32.325818+00:00", "elapsed_ms": 2651, "output_length": 71}
+{"host": "23.95.61.104", "command": "cat /proc/loadavg", "started_at": "2026-01-29T10:02:34.977688+00:00", "elapsed_ms": 2420, "output_length": 29}
+{"host": "23.95.61.104", "command": "top -b -n 1 | head -n 40", "started_at": "2026-01-29T10:02:37.398981+00:00", "elapsed_ms": 2258, "output_length": 3091}
+{"host": "23.95.61.104", "command": "ps -eo pid,ppid,cmd,%cpu,%mem --sort=-%cpu | head -n 15", "started_at": "2026-01-29T10:02:39.658141+00:00", "elapsed_ms": 33850, "output_length": 58}
+{"host": "23.95.61.104", "command": "free -m", "started_at": "2026-01-29T10:03:13.509942+00:00", "elapsed_ms": 4248, "output_length": 207}
+{"host": "23.95.61.104", "command": "jps -l", "started_at": "2026-01-29T10:03:17.759501+00:00", "elapsed_ms": 2862, "output_length": 47}
+{"host": "23.95.61.104", "command": "jstack -l ", "started_at": "2026-01-29T10:04:11.252655+00:00", "elapsed_ms": 2011, "output_length": 50}
+{"host": "23.95.61.104", "command": "uptime", "started_at": "2026-01-29T10:54:19.286647+00:00", "elapsed_ms": 2396, "output_length": 71}
+{"host": "23.95.61.104", "command": "cat /proc/loadavg", "started_at": "2026-01-29T10:54:21.684298+00:00", "elapsed_ms": 2104, "output_length": 29}
+{"host": "23.95.61.104", "command": "top -b -n 1 | head -n 40", "started_at": "2026-01-29T10:54:23.789329+00:00", "elapsed_ms": 3189, "output_length": 3091}
+{"host": "23.95.61.104", "command": "ps -eo pid,ppid,cmd,%cpu,%mem --sort=-%cpu | head -n 15", "started_at": "2026-01-29T10:54:26.979770+00:00", "elapsed_ms": 3909, "output_length": 810}
+{"host": "23.95.61.104", "command": "free -m", "started_at": "2026-01-29T10:54:30.890255+00:00", "elapsed_ms": 3384, "output_length": 207}
+{"host": "23.95.61.104", "command": "jps -l", "started_at": "2026-01-29T10:54:34.275597+00:00", "elapsed_ms": 3984, "output_length": 47}
+{"host": "23.95.61.104", "command": "jstack -l ", "started_at": "2026-01-29T10:55:02.650570+00:00", "elapsed_ms": 2643, "output_length": 50}
+{"host": "23.95.61.104", "command": "journalctl -u java --since \"30 min ago\" --no-pager", "started_at": "2026-01-29T10:55:05.295887+00:00", "elapsed_ms": 4297, "output_length": 17}
+{"host": "23.95.61.104", "command": "uptime", "started_at": "2026-01-29T11:01:15.976953+00:00", "elapsed_ms": 8781, "output_length": 71}
+{"host": "23.95.61.104", "command": "cat /proc/loadavg", "started_at": "2026-01-29T11:01:24.759437+00:00", "elapsed_ms": 2591, "output_length": 29}
+{"host": "23.95.61.104", "command": "top -b -n 1 | head -n 40", "started_at": "2026-01-29T11:01:27.352428+00:00", "elapsed_ms": 2634, "output_length": 3091}
+{"host": "23.95.61.104", "command": "ps -eo pid,ppid,cmd,%cpu,%mem --sort=-%cpu | head -n 15", "started_at": "2026-01-29T11:01:29.987656+00:00", "elapsed_ms": 2146, "output_length": 810}
+{"host": "23.95.61.104", "command": "free -m", "started_at": "2026-01-29T11:01:32.134911+00:00", "elapsed_ms": 2131, "output_length": 207}
+{"host": "23.95.61.104", "command": "jps -l", "started_at": "2026-01-29T11:01:34.267423+00:00", "elapsed_ms": 2034, "output_length": 47}
+{"host": "23.95.61.104", "command": "jstack -l ", "started_at": "2026-01-29T11:01:59.218498+00:00", "elapsed_ms": 2809, "output_length": 50}
+{"host": "23.95.61.104", "command": "jstat -gcutil  1 5", "started_at": "2026-01-29T11:02:02.029407+00:00", "elapsed_ms": 4914, "output_length": 49}
+{"host": "23.95.61.104", "command": "uptime", "started_at": "2026-01-29T11:05:11.938808+00:00", "elapsed_ms": 2695, "output_length": 71}
+{"host": "23.95.61.104", "command": "cat /proc/loadavg", "started_at": "2026-01-29T11:05:14.635739+00:00", "elapsed_ms": 2216, "output_length": 29}
+{"host": "23.95.61.104", "command": "top -b -n 1 | head -n 40", "started_at": "2026-01-29T11:05:16.852941+00:00", "elapsed_ms": 5083, "output_length": 3091}
+{"host": "23.95.61.104", "command": "ps -eo pid,ppid,cmd,%cpu,%mem --sort=-%cpu | head -n 15", "started_at": "2026-01-29T11:05:21.937066+00:00", "elapsed_ms": 3723, "output_length": 810}
+{"host": "23.95.61.104", "command": "free -m", "started_at": "2026-01-29T11:05:25.661027+00:00", "elapsed_ms": 4587, "output_length": 207}
+{"host": "23.95.61.104", "command": "jps -l", "started_at": "2026-01-29T11:05:30.249598+00:00", "elapsed_ms": 5686, "output_length": 47}
+{"host": "23.95.61.104", "command": "jstack -l ", "started_at": "2026-01-29T11:05:53.996797+00:00", "elapsed_ms": 2564, "output_length": 50}
+{"host": "23.95.61.104", "command": "jstat -gcutil  1 5", "started_at": "2026-01-29T11:05:56.561896+00:00", "elapsed_ms": 2449, "output_length": 49}
+{"host": "23.95.61.104", "command": "journalctl -u java --since \"30 min ago\" --no-pager", "started_at": "2026-01-29T11:06:20.636753+00:00", "elapsed_ms": 8897, "output_length": 17}
+{"host": "23.95.61.104", "command": "uptime", "started_at": "2026-01-29T12:34:22.341171+00:00", "elapsed_ms": 2990, "output_length": 71}
+{"host": "23.95.61.104", "command": "cat /proc/loadavg", "started_at": "2026-01-29T12:34:25.331696+00:00", "elapsed_ms": 2280, "output_length": 29}
+{"host": "23.95.61.104", "command": "top -b -n 1 | head -n 50", "started_at": "2026-01-29T12:34:27.613042+00:00", "elapsed_ms": 2681, "output_length": 3890}
+{"host": "23.95.61.104", "command": "ps -eo pid,ppid,cmd,%cpu,%mem --sort=-%cpu | head -n 20", "started_at": "2026-01-29T12:34:30.295593+00:00", "elapsed_ms": 4350, "output_length": 1080}
+{"host": "23.95.61.104", "command": "free -m", "started_at": "2026-01-29T12:34:34.646445+00:00", "elapsed_ms": 19445, "output_length": 207}
+{"host": "23.95.61.104", "command": "vmstat 1 5", "started_at": "2026-01-29T12:34:54.092738+00:00", "elapsed_ms": 50411, "output_length": 48}
+{"host": "23.95.61.104", "command": "iostat -x 1 3", "started_at": "2026-01-29T12:35:44.506079+00:00", "elapsed_ms": 4450, "output_length": 2200}
+{"host": "23.95.61.104", "command": "mpstat -P ALL 1 1", "started_at": "2026-01-29T12:35:48.957422+00:00", "elapsed_ms": 33446, "output_length": 58}
+{"host": "23.95.61.104", "command": "pidstat -h 1 1", "started_at": "2026-01-29T12:36:22.407005+00:00", "elapsed_ms": 66551, "output_length": 348}
+{"host": "23.95.61.104", "command": "jps -l", "started_at": "2026-01-29T12:37:28.960932+00:00", "elapsed_ms": 2762, "output_length": 47}
+{"host": "23.95.61.104", "command": "cat /proc//status", "started_at": "2026-01-29T12:38:06.283896+00:00", "elapsed_ms": 14559, "output_length": 56}
+{"host": "23.95.61.104", "command": "cat /proc//stack", "started_at": "2026-01-29T12:38:20.845312+00:00", "elapsed_ms": 30451, "output_length": 43}
+{"host": "23.95.61.104", "command": "jstat -gc  1 1", "started_at": "2026-01-29T12:38:51.306168+00:00", "elapsed_ms": 2184, "output_length": 49}
+{"host": "23.95.61.104", "command": "cat /proc//stat", "started_at": "2026-01-29T12:39:35.804927+00:00", "elapsed_ms": 3832, "output_length": 1290}
+{"host": "23.95.61.104", "command": "cat /proc//io", "started_at": "2026-01-29T12:39:39.638397+00:00", "elapsed_ms": 2262, "output_length": 52}
+{"host": "23.95.61.104", "command": "jcmd  Thread.print", "started_at": "2026-01-29T12:39:41.900866+00:00", "elapsed_ms": 2999, "output_length": 48}
