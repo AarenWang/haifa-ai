@@ -136,6 +136,24 @@ python -m src.cli.sre_agent_cli run \
   --platform darwin
 ```
 
+### 2.1) 运行（多轮诊断：采证 + LLM 规划 + 追加采证 + 最终报告）
+
+`diagnose` 会先跑确定性 baseline/routing 采证，然后进入多轮：LLM 仅从 `configs/routing.yaml` 的候选命令池里选择下一步 `cmd_id`，系统执行并回填证据，直到满足停止条件输出最终报告。
+
+```bash
+cd sre-agent
+python -m src.cli.sre_agent_cli diagnose \
+  --host 10.0.0.12 \
+  --service myapp \
+  --window-minutes 30 \
+  --exec-mode ssh \
+  --platform linux \
+  --max-rounds 3 \
+  --max-cmds-per-round 3 \
+  --time-budget-sec 120 \
+  --confidence-threshold 0.85
+```
+
 ### 3) 告警/工单对接（可选）
 
 ```bash

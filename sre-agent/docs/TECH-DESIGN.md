@@ -1,399 +1,220 @@
-# 生产只读运维智能体 技术设计
+# sre-agent TECH-DESIGN (Current)
+
+本文描述当前 `sre-agent` 的技术设计与代码结构，强调三条硬约束：
+
+- 只读：所有执行动作必须来自白名单 cmd_id 且通过策略校验。
+- 可审计：每次命令执行都记录审计信息与输出哈希，可回放。
+- 证据驱动：结论必须能引用到 evidence/audit（避免无证据断言）。
+
+相关补充：
+
+- 多轮闭环：见 `sre-agent/docs/multi-stage.md`
+- 子 agent / 多 agent（准确性优先）：见 `sre-agent/docs/multi-and-sub-agent.md`
 
 ## 1. 总体架构
 
-### 1.1 两阶段流程
+当前实现是“确定性优先 + 可选多轮规划”的双路径：
 
-**Phase A：Agent 采证**
-- Claude Agent SDK (v1) / 直接调用千问 API (v2, v3)
-- 调用 MCP 工具 `sre_diag`
-- 输出 evidence_pack.json
+1) Deterministic Orchestrator
+- discovery/baseline -> rules classify -> routing targeted
+- 输出 `evidence_pack.json`
 
-**Phase B：结构化报告**
-- Claude API `output_format` + JSON Schema (v1)
-- 千问 API + JSON Schema (v2, v3)
-- 输入 evidence_pack
-- 输出 diagnosis_report.json
+2) Multi-round Diagnose (routing-restricted)
+- 先跑 Deterministic Orchestrator 作为 baseline
+- LLM 仅产出 plan JSON（不直接 tool-call）
+- 系统按 allowlist 执行 cmd_id，追加证据，再迭代
+- 输出：`evidence_pack.json` + `diagnosis_report.json` + `diagnosis_trace.json`
 
-### 1.2 版本对比
+## 2. 代码模块与职责
 
-| 版本 | AI 模型 | MCP 工具 | 诊断策略 | 文件 |
-|------|---------|----------|----------|------|
-| v1 | Claude Sonnet | ✓ | 固定轮数 | `diag_load_agent.py` |
-| v2 | 千问 (qwen-plus) | ✗ | 固定5轮 | `diag_load_agent_v2.py` |
-| v3 | 千问 + LangGraph | ✗ | 智能路由决策 | `diag_load_agent_v3.py` |
+CLI / 入口
 
-## 2. 模块与职责
+- `sre-agent/src/cli/sre_agent_cli.py`：统一命令入口（exec/run/diagnose/report/ingest-alert/ticket）
 
-### 2.1 主程序
+编排层 (Orchestrator)
 
-**v1: `diag_load_agent.py`**
-- 使用 Claude Agent SDK
-- 通过 MCP 协议调用工具
-- 证据收集与 evidence_schema 校验
-- 可选生成最终报告
+- `sre-agent/src/orchestrator/graph.py`：确定性编排（baseline + rules + routing）与单条命令执行 `exec_cmd()`
+- `sre-agent/src/orchestrator/multi_stage.py`：多轮诊断 loop（LLM planner -> 执行 -> 更新 signals -> 再规划）
+- `sre-agent/src/orchestrator/planner_prompt.py`：plan prompt builder（强制 allowlist 与 schema）
+- `sre-agent/src/orchestrator/rules.py`：规则分类器（从 signals 推导 hypothesis）
 
-**v2: `diag_load_agent_v2.py`**
-- 直接调用千问 API（OpenAI 兼容接口）
-- 内置诊断工具，无需 MCP
-- 固定5轮迭代诊断
-- 支持更多细粒度命令
+执行层 (Execution)
 
-**v3: `diag_load_agent_v3.py`**
-- 使用 LangGraph 编排诊断流程
-- 根据问题类型动态选择诊断路径
-- 减少不必要的命令执行
+- `sre-agent/src/adapters/exec/ssh.py`：SSH 执行器（支持密码/免密；支持 shell init 与 JAVA_HOME best-effort）
+- `sre-agent/src/adapters/exec/local.py`：本地执行器（用于开发/回放）
+- `sre-agent/src/adapters/exec/mcp.py`：MCP 执行适配器（当前为 stub，未接入）
 
-### 2.2 MCP 服务器
+注册与解析 (Registry)
 
-**`mcp_server_sre.py`**
-- 只读命令白名单（40+ 命令）
-- SSH 直连执行（支持密钥/密码认证）
-- 输出脱敏与审计
-- 通过 FastMCP 暴露工具
+- `sre-agent/src/registry/commands.py`：加载 `configs/commands.yaml`，render 命令模板（{service}/{pid}）
+- `sre-agent/src/registry/parsers.py`：将命令输出解析为结构化 parsed
+- `sre-agent/src/registry/signals.py`：从 parsed 提取标准化 signals
 
-### 2.3 辅助模块
+安全策略 (Policy)
 
-| 模块 | 职责 |
-|------|------|
-| `report_generator.py` | Phase B 结构化报告生成 |
-| `redaction.py` | 脱敏规则与替换计数 |
-| `audit.py` | 审计日志写入 |
+- `sre-agent/src/policy/command_policy.py`：命令风险与 deny_keywords 校验
+- `sre-agent/src/policy/validators.py`：`service/pid` 参数校验（防注入）
+- `sre-agent/src/policy/action_filter.py`：过滤报告中的 `next_actions`（只允许 READ_ONLY/LOW）
 
-## 3. MCP 调用流程
+存储与审计 (Storage)
 
-### 3.1 整体架构
+- `sre-agent/src/storage/evidence_store.py`：证据落盘（raw/redacted/parsed/index）
+- `sre-agent/src/storage/redaction.py`：脱敏与输出哈希
+- `sre-agent/src/storage/audit_store.py`：审计日志（jsonl）
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  diag_load_agent.py (主程序 - v1)                           │
-│                                                             │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │ ClaudeSDKClient                                        │ │
-│  │   - 连接到 Claude API                                   │ │
-│  │   - 发送 prompt，告诉 AI 使用 MCP 工具                  │ │
-│  └───────────────┬───────────────────────────────────────┘ │
-│                  │                                           │
-│  ┌───────────────▼───────────────────────────────────────┐ │
-│  │ MCP Server 配置                                         │ │
-│  │   mcp_servers: {                                        │ │
-│  │     "sre": {                                            │ │
-│  │       "command": ["python", "mcp_server_sre.py"]        │ │
-│  │     }                                                   │ │
-│  │   }                                                     │ │
-│  └───────────────┬───────────────────────────────────────┘ │
-│                  │ 启动子进程                                │
-└──────────────────┼───────────────────────────────────────────┘
-                   │
-                   ▼
-┌─────────────────────────────────────────────────────────────┐
-│  mcp_server_sre.py (独立子进程)                             │
-│                                                             │
-│  - 启动 FastMCP 服务器                                       │
-│  - 暴露工具: sre_diag(), sre_list_commands(), sre_get_status()│
-│  - 通过 stdio 与 ClaudeSDKClient 通信                       │
-│  - 收到工具调用后执行 SSH 命令                               │
-│                                                             │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │ sre_diag(host, cmd_id, service, pid)                  │ │
-│  │   └─> SSH 执行 ──> 脱敏 ──> 返回结果                   │ │
-│  └───────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
-```
+报告生成 (Reporting)
 
-### 3.2 调用时序
+- `sre-agent/src/reporting/report_builder.py`：LLM 生成 `diagnosis_report` + 再做 action filter
+- `sre-agent/src/reporting/schema_validate.py`：JSON Schema 校验
 
-```
-1. diag_load_agent.py 启动
-   │
-2. 创建 ClaudeSDKClient，配置 MCP 服务器
-   │
-3. ClaudeSDKClient 启动子进程:
-   │   python mcp_server_sre.py
-   │
-4. mcp_server_sre.py 启动 FastMCP 服务器
-   │   - 通过 stdio 进行通信
-   │   - 注册工具: sre_diag, sre_list_commands, sre_get_status
-   │
-5. ClaudeSDKClient 发送 prompt 给 Claude
-   │   prompt 中说明: "Use the MCP tool `sre_diag(...)`"
-   │
-6. Claude 分析后决定调用工具:
-   │   Claude -> ClaudeSDKClient -> MCP协议 -> mcp_server_sre.py
-   │
-7. mcp_server_sre.py 执行 SSH 命令，返回结果
-   │
-8. 结果通过 MCP 协议返回给 Claude
-   │
-9. Claude 基于工具返回继续分析，可能调用更多工具
-   │
-10. 最终结果返回给 diag_load_agent.py
-```
+## 3. 配置与 Schema
 
-### 3.3 MCP 通信细节
+配置文件（默认 `sre-agent/configs/`）：
 
-**配置方式 (v1 代码):**
+- `sre-agent/configs/runtime.yaml`：运行时默认值（vendor、ssh、evidence base_dir、baseline cmds）
+- `sre-agent/configs/commands.yaml`：cmd_id 白名单与模板命令
+- `sre-agent/configs/rules.yaml`：规则分类配置
+- `sre-agent/configs/routing.yaml`：分类到 cmd_id 的路由（routing-restricted 的 allowlist 来源）
+- `sre-agent/configs/policy.yaml`：执行/动作过滤策略（allowed_risks、deny_keywords）
 
-```python
-options = ClaudeAgentOptions(
-    mcp_servers={
-        "sre": {
-            "command": [current_python, "mcp_server_sre.py"],
-        }
-    },
-    env=api_env,  # 传递环境变量给子进程
-)
-```
+Schema（默认 `sre-agent/schemas/`）：
 
-**FastMCP 工具注册:**
+- `sre-agent/schemas/evidence_schema.json`：`evidence_pack` 结构
+- `sre-agent/schemas/plan_schema.json`：多轮 planner 的 plan 输出结构
+- `sre-agent/schemas/report_schema.json`：最终 `diagnosis_report` 结构
 
-```python
-from mcp.server.fastmcp import FastMCP
+配置覆盖：
 
-mcp = FastMCP("sre-tools")
+- CLI 会加载 yaml 并应用环境变量覆盖（例如 `SRE_LLM_VENDOR`、`SRE_SSH_USER`、`OPS_AGENT_AUDIT_LOG`）。
 
-@mcp.tool()
-def sre_diag(host: str, cmd_id: str, service: str = None, pid: str = None):
-    """工具定义，AI 可以调用"""
-    # 执行 SSH 命令
-    return {"ok": True, "output": "..."}
+## 4. 数据流与产物
 
-if __name__ == "__main__":
-    mcp.run()  # 启动 stdio 通信
-```
+### 4.1 Evidence Pack
 
-**关键组件:**
+主产物：`evidence_pack`（schema：`sre-agent/schemas/evidence_schema.json`）
 
-| 组件 | 作用 |
-|------|------|
-| `ClaudeSDKClient` | Claude Agent SDK 的客户端，管理 MCP 服务器 |
-| `FastMCP` | MCP 服务器框架，通过 stdio 通信 |
-| `@mcp.tool()` | 装饰器，将 Python 函数注册为 MCP 工具 |
-| `mcp_servers` 配置 | 告诉 SDK 启动哪些 MCP 服务器子进程 |
-| stdio | 子进程与父进程之间的通信通道 |
+- `meta`：host/service/env/session_id/platform/timestamp
+- `snapshots`：轻量摘要（cmd_id + 首行信号 + audit_ref）
+- `signals`：结构化信号（供 rules 与 planner 使用）
+- `hypothesis`：规则分类输出（category/confidence/why/evidence_refs）
+- `policy`：本次运行的策略快照（用于 report action filter）
 
-### 3.4 为什么这样设计？
+### 4.2 Evidence Store Layout
 
-1. **隔离性** - MCP 服务器运行在独立子进程，崩溃不影响主程序
-2. **可扩展** - 可以同时启动多个 MCP 服务器（如不同的诊断工具）
-3. **安全** - 工具在沙箱中运行，AI 只能调用白名单工具
-4. **标准化** - MCP 是通用协议，任何支持 MCP 的 AI 都能使用这些工具
+落盘目录：`{evidence.base_dir}/{session_id}/`
 
-## 4. 诊断策略
+- `raw/`：原始输出（仅用于回放/调试；仍会写入，注意权限与保留策略）
+- `redacted/`：脱敏输出（默认供后续阅读/复盘）
+- `parsed/`：解析后的结构化 JSON
+- `index/`：索引与 trace（包括每条 event、evidence_pack、diagnosis_report、diagnosis_trace 等）
 
-### 4.1 v2 固定轮数策略
+### 4.3 Audit Log
 
-```
-第1轮: 基础系统状态 (uptime, top, vmstat, iostat...)
-   │
-第2轮: 进程级细节 (/proc/pid/*)
-   │
-第3轮: Java深度分析 (jstat, jstack...)
-   │
-第4轮: IO瓶颈分析 (iotop, pidstat -d)
-   │
-第5轮: 最终综合诊断
-```
+审计日志：`runtime.yaml` 的 `audit_log`（默认 `./audit.log`，jsonl）
 
-### 4.2 v3 智能路由策略
+- 记录 cmd_id、执行时间、耗时、脱敏规则、redacted output hash
+- `audit_ref` 采用 `{cmd_id}-{timestamp}`，用于把 report/evidence_table 追溯到执行记录
 
-```
-基础信息收集 → AI分类决策
-                        │
-        ┌───────────────┼───────────────┐
-        ▼               ▼               ▼
-    CPU高           IO等待          内存压力
-    │               │               │
-    ▼               ▼               ▼
- mpstat          pidstat_io      jstat_gc
- /proc/pid/status /proc/pid/io   jcmd_heap
- jstack          iotop
-        │               │               │
-        └───────────────┼───────────────┘
-                        ▼
-                   生成最终报告
-```
+## 5. 执行流程
 
-## 5. 数据结构
+### 5.1 单条命令 exec
 
-### 5.1 evidence_pack.json
+入口：`sre-agent/src/cli/sre_agent_cli.py` -> `exec`
 
-Schema 见 [../schemas/evidence_schema.json](../schemas/evidence_schema.json)。核心字段：
+流程：
 
-- meta: host、service、timestamp
-- snapshots: cmd_id、signal、summary、audit_ref
-- hypothesis: category、confidence、why、evidence_refs
-- next_checks: cmd_id、purpose
+1) 从 `configs/commands.yaml` 取 `cmd_id` 元信息
+2) policy 校验（risk + deny_keywords）
+3) 参数校验（{service}/{pid}）
+4) SSH/local 执行
+5) 脱敏 + hash
+6) 可选写入 audit log
 
-### 5.2 diagnosis_report.json
+### 5.2 run（确定性采证）
 
-Schema 见 [../schemas/report_schema.json](../schemas/report_schema.json)。核心字段：
+入口：`sre-agent/src/cli/sre_agent_cli.py` -> `run`
 
-- meta
-- root_cause
-- evidence_table
-- next_actions
-- audit
-- redaction
+流程（`sre-agent/src/orchestrator/graph.py`）：
 
-## 6. 只读命令白名单
+1) baseline：按 `runtime.yaml` 的 baseline cmds 执行
+2) 解析/提取 signals
+3) rules 分类得到 primary category
+4) routing：按 `routing.yaml` 执行 targeted cmds
+5) 再次 rules 分类更新 hypothesis
+6) 输出 evidence_pack 并写入 EvidenceStore index
 
-### 6.1 基础系统信息
+### 5.3 diagnose（多轮闭环）
 
-| cmd_id | 命令 |
-|--------|------|
-| uptime | uptime |
-| loadavg | cat /proc/loadavg |
-| top | top -b -n 1 |
-| ps_cpu | ps -eo pid,ppid,cmd,%cpu,%mem --sort=-%cpu |
-| vmstat | vmstat 1 5 |
-| iostat | iostat -x 1 3 |
-| free | free -m |
+入口：`sre-agent/src/cli/sre_agent_cli.py` -> `diagnose`
 
-### 6.2 CPU 深度诊断
+关键原则：LLM 不直接执行命令，只输出 plan（严格 schema + allowlist）。
 
-| cmd_id | 命令 |
-|--------|------|
-| mpstat | mpstat -P ALL 1 1 |
-| pidstat | pidstat -h 1 1 |
-| proc_pid_status | cat /proc/{pid}/status |
-| proc_pid_stack | cat /proc/{pid}/stack |
-| proc_pid_wchan | cat /proc/{pid}/wchan |
+流程（`sre-agent/src/orchestrator/multi_stage.py`）：
 
-### 6.3 IO 深度诊断
+1) 先跑 `Orchestrator.run()` 得到 baseline evidence_pack
+2) 取 primary category，并从 `routing.yaml` 获取 allowed_cmd_pool
+3) Round 1..N：
+   - 仅向 LLM 提供 signals + snapshots（无 raw 全量输出）
+   - `planner_prompt` 强制 allowlist 与 `plan_schema`
+   - system 过滤 plan（not_in_pool / duplicate / unknown_cmd_id）
+   - 执行保留的 cmd_id 并追加 snapshots/signals
+   - rules re-classify 更新 hypothesis
+   - 写入 per-round trace：`index/llm_round_XXX.json`
+4) STOP：预算/路由耗尽/LLM stop/置信度阈值
+5) 最终调用 `report_builder` 生成 `diagnosis_report` 并写入 index
 
-| cmd_id | 命令 |
-|--------|------|
-| proc_pid_io | cat /proc/{pid}/io |
-| iotop | iotop -b -n 1 -o |
-| pidstat_io | pidstat -d 1 2 |
+## 6. 安全设计
 
-### 6.4 Java 诊断
+只读与可控的强约束来自三层：
 
-| cmd_id | 命令 |
-|--------|------|
-| jps | jps -l |
-| jstat | jstat -gcutil {pid} 1 5 |
-| jstat_gc | jstat -gc {pid} 1 1 |
-| jstack | jstack -l {pid} |
-| jcmd_threads | jcmd {pid} Thread.print |
-| jcmd_heap | jcmd {pid} GC.heap_info |
+1) 命令白名单
+- 所有执行必须通过 `cmd_id -> commands.yaml` 映射
 
-## 7. 安全与审计
+2) 参数校验
+- `service` 仅允许安全字符集；`pid` 必须为数字（见 `sre-agent/src/policy/validators.py`）
 
-### 7.1 安全策略
+3) Policy Gate
+- `allowed_risks` + `deny_keywords`（见 `sre-agent/configs/policy.yaml`）
+- 报告动作再过滤：`sre-agent/src/policy/action_filter.py`
 
-- cmd_id 白名单
-- 参数必填校验（service/pid）
-- 输出截断与超时限制
-- 只读诊断，无写操作
+附加设计点：
 
-### 7.2 审计
+- planner allowlist：多轮诊断中 LLM 只能在 `allowed_cmd_pool` 中选 cmd_id（routing-restricted）
+- 脱敏：默认对 IP/邮箱/secret/path/user 等做替换（见 `sre-agent/src/storage/redaction.py`）
 
-- 记录 id、cmd_id、start_time、elapsed_ms
-- 记录 redacted output hash
-- 审计日志可通过 `OPS_AGENT_AUDIT_LOG` 配置
+## 7. 可观测性与评估
 
-### 7.3 脱敏策略
+- 运行日志：CLI 通过 `--log-level` / `SRE_LOG_LEVEL` 控制
+- Trace：多轮诊断保存 `diagnosis_trace` 与每轮 `llm_round_XXX.json`
+- 回放与评估：`sre-agent/src/evaluation/replay.py`、`sre-agent/src/evaluation/metrics.py`
 
-默认规则见 [../src/storage/redaction.py](../src/storage/redaction.py)：
+建议关注“准确性优先”的指标体系：见 `sre-agent/docs/multi-and-sub-agent.md`。
 
-- IP、邮箱、Token、路径、用户名
-- 输出仅保存脱敏后内容
-
-## 8. 运行方式
-
-### 8.1 v1 (Claude + MCP)
+## 8. 运行方式（当前 CLI）
 
 ```bash
-# 基础诊断
-export ANTHROPIC_API_KEY="sk-xxx"
-python diag_load_agent.py --host 10.0.0.12 --service myapp
+# 查看当前 LLM / SDK 选择与能力
+python -m src.cli.sre_agent_cli info
 
-# 生成最终报告
-python diag_load_agent.py --host 10.0.0.12 --service myapp --final-report
+# 只执行一个 cmd_id（受 policy 限制）
+python -m src.cli.sre_agent_cli exec --host 1.2.3.4 --cmd-id uptime
+
+# 确定性采证，输出 evidence_pack
+python -m src.cli.sre_agent_cli run --host 1.2.3.4 --service myapp --output report/evidence_pack.json
+
+# 多轮诊断：采证 + 规划 + 报告 + trace
+python -m src.cli.sre_agent_cli diagnose --host 1.2.3.4 --service myapp \
+  --output-evidence report/evidence_pack.json \
+  --output-report report/report.json \
+  --output-trace report/diagnosis_trace.json
+
+# 从 evidence_pack 生成 report（不做执行）
+python -m src.cli.sre_agent_cli report --evidence report/evidence_pack.json --schema schemas/report_schema.json
 ```
 
-### 8.2 v2 (千问 + 固定轮数)
+## 9. 扩展点
 
-```bash
-# 设置千问 API Key
-export DASHSCOPE_API_KEY="sk-xxx"
-
-# 基础诊断
-python diag_load_agent_v2.py --host 10.0.0.12 --service myapp
-
-# 指定轮数
-python diag_load_agent_v2.py --host 10.0.0.12 --service myapp --max-rounds 3
-
-# 保存报告
-python diag_load_agent_v2.py --host 10.0.0.12 --service myapp -o
-```
-
-### 8.3 v3 (千问 + LangGraph)
-
-```bash
-# 智能路由诊断
-pip install langgraph langchain-core
-python diag_load_agent_v3.py --host 10.0.0.12 --service myapp -o
-```
-
-### 8.4 SSH 认证
-
-```bash
-# 密钥认证 (默认)
-python diag_load_agent_v2.py --host 10.0.0.12 --service myapp
-
-# 密码认证
-python diag_load_agent_v2.py --host 10.0.0.12 --service myapp \
-  --ssh-user admin --ssh-password "password"
-```
-
-## 9. 配置
-
-### 9.1 环境变量
-
-| 变量 | 用途 | 版本 |
-|------|------|------|
-| `ANTHROPIC_API_KEY` | Claude API Key | v1 |
-| `ANTHROPIC_BASE_URL` | Claude API endpoint | v1 |
-| `DASHSCOPE_API_KEY` | 千问 API Key | v2, v3 |
-| `SRE_SSH_USER` | SSH 用户名 | all |
-| `SRE_SSH_PASSWORD` | SSH 密码 | all |
-| `SRE_SSH_PORT` | SSH 端口 | all |
-| `OPS_AGENT_AUDIT_LOG` | 审计日志路径 | all |
-| `OPS_AGENT_LOG_LEVEL` | 日志级别 | all |
-
-### 9.2 报告路径
-
-- v2/v3 默认保存到 `sre-agent/report/YYMMDD_HHMM.json`
-
-## 10. 日志
-
-### 10.1 MCP 服务器日志
-
-```
-[INFO] [MCP-SRE] SRE MCP Server 启动
-[INFO] [MCP-SRE] 配置:
-[INFO] [MCP-SRE]   - SSH 用户: root
-[INFO] [MCP-SRE]   - SSH 端口: 22
-[INFO] [MCP-SRE]   - 可用命令: 30
-[INFO] [MCP-SRE] [DIAG] 开始诊断: host=10.0.0.12, cmd_id=uptime
-[INFO] [MCP-SRE] [SSH] 开始执行: host=root@10.0.0.12 cmd_id=uptime
-[INFO] [MCP-SRE] [SSH] 完成: host=root@10.0.0.12, elapsed=0.45s
-[INFO] [MCP-SRE] [DIAG] 完成: cmd_id=uptime, elapsed_ms=452
-```
-
-### 10.2 日志级别控制
-
-```bash
-export OPS_AGENT_LOG_LEVEL=DEBUG  # 详细日志
-export OPS_AGENT_LOG_LEVEL=INFO   # 默认
-```
-
-## 11. 风险与后续
-
-- 模型输出偏差：通过 Schema 校验 + retry 降低
-- 命令覆盖不全：扩展 cmd_id 白名单
-- 复杂场景（多 JVM）：增加 pid 选择逻辑
-- LangGraph 依赖：提供降级模式
+- 新命令：在 `sre-agent/configs/commands.yaml` 增加 cmd_id，并在 `sre-agent/src/registry/parsers.py` / `sre-agent/src/registry/signals.py` 增加解析与信号提取
+- 新分类：在 `sre-agent/configs/rules.yaml` 增加规则；在 `sre-agent/configs/routing.yaml` 增加路由候选池
+- 新执行后端：实现与 `SSHExecutor` 相同的 `run(host, command, timeout)` 接口即可接入 `Orchestrator`
+- 子 agent / 多 agent：先以“Verifier pass”增强报告准确性，再进入多 agent 并行（见 `sre-agent/docs/multi-and-sub-agent.md`）
